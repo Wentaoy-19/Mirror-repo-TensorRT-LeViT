@@ -83,21 +83,21 @@ TYPE： pytorch or tensorrt, representing PyTorch or TensorRT Model.
 
 ENGINE_PATH：If TYPE is tensorrt, it need the engine file. 
 
-- 测试模型推理速度
+- Evaluate Model inference speed
 
-对于TensorRT模型，可以使用trtexec测速：
+For TensorRT model, we use trtexec to evaluate speed：
 
 ```shell
 trtexec --loadEngine=ENGINE_PATH --shapes=input:16x3x224x224 --useSpinWait
 ```
 
-对于PyTorch模型，使用python脚本文件测速：
+For PyTorch model, we use python script to evaluate speed：
 
 ```shell
 python3 pytorch_speed_test.py
 ```
 
-- 生成calibration数据集：
+- Generate calibration dataset：
 
 ```shell
 python3 generate_calibration_data.py --data-path IMAGENET_ROOT
