@@ -103,42 +103,42 @@ python3 pytorch_speed_test.py
 python3 generate_calibration_data.py --data-path IMAGENET_ROOT
 ```
 
-## 原始模型
+## Original
 
-### 1. 模型简介
+### 1. Introduction
 
-- 我们小组选择优化的模型是来自于FaceBook Research的LeViT, 一种基于Transformer的用于快速推理图像分类的混合模型。该模型在推理精度上和运行速度上取得了较好的平衡。在同等精度之下，该模型相比于其他视觉Transformer的SOTA模型例如Visual Transformer，Bottleneck transformer和pyramid vision transformer能有近5倍的速度提升。相比于其他Token-to-token ViT模型，LeViT也有更少的参数和FLOPs。因此，LeViT是一个相对较为轻量化的模型，其较好的性能表现也保证了该模型较好的实用性。
+- Our group has chosen the LeViT model from Facebook Research as the optimized model for our use. LeViT is a hybrid model based on Transformer, designed for fast inference of image classification. It has achieved a good balance of both inference accuracy and running speed. Among models with similar accuracy, LeViT has a speed increase of almost five times compared to other state-of-the-art visual Transformer models such as Visual Transformer, Bottleneck transformer, and Pyramid vision transformer. In comparison to other Token-to-token ViT models, LeViT also has fewer parameters and FLOPs. Therefore, LeViT is a relatively lightweight model with good performance that ensures its practicality.
 
-### 2.模型结构
+### 2. Model structure
 
-- 模型的整体结构如下图所示。输入的图片通过pyramid convolution 提取Embedding，随后输入到三个连续的stage中。最后一个stage的输出会作为分类器的输入，并得到图像分类的结果。
-- 在数据输入到attention layer之前经过了一个pyramid convolution的处理。它由4个连续的3*3卷积核组成，且输出的feature map的维度逐级提升。该网络结构的目的在于提取patch embedding，并提高网络的精度。
-- 在每个stage中，输入数据会通过一系列的multi-head attention layer和用于残差连接的MLP Layer。其中，multi-head attention和一般常见的Transformer类模型中的Attention是基本相同的。但在LeViT的attention layer中并没有用到常见的positional embedding，而是在计算Attention的QK乘积是加入了一个Attention Bias充当positional embedding的作用。而MLP layer在本模型中是1*1的卷积层和一个batch normalization layer。根据论文，作者之所以没有采用常见的MLP block的原因是考虑到了常见的MLP通常会有更大的计算开销，从而采用了该模型中的结构用于残差连接。
-- 同时，在每两个stage之间，有一个multi-head shrink attention layer。该层会让输出的feature map的宽高减半，并提高其维度，从而起到下采样的作用。这一层的结构和LeViT中的Multi-head Attention是基本一致的，唯一不同的地方在于在Q Transformation之前对输入进行了下采样，从而最终得到了"shrink attention"的效果。
+- The overall structure of the model is shown in the following diagram. The input image is passed through pyramid convolution to extract the embedding, which is then input to three consecutive stages. The output of the final stage is used as input to the classifier and produces the image classification result.
+- Before the data is input to the attention layer, it goes through a pyramid convolution process. This consists of four consecutive 3x3 convolution kernels, with the dimension of the output feature map increasing at each level. The purpose of this network structure is to extract patch embeddings and improve the accuracy of the network.
+- In each stage, the input data passes through a series of multi-head attention layers and MLP layers for residual connections. The multi-head attention in LeViT is similar to the attention found in typical Transformer models. However, LeViT's attention layer does not use the common positional embedding. Instead, an attention bias is added to the QK product calculation to serve as a positional embedding. The MLP layer in this model consists of a 1x1 convolution layer and a batch normalization layer. According to the paper, the authors chose not to use a common MLP block because it typically has a larger computational cost, and the structure used in this model was adopted for the residual connection to reduce this cost.
+- Additionally, between each pair of stages, there is a multi-head shrink attention layer. This layer reduces the width and height of the output feature map by half and increases its dimension, serving as a down-sampling operation. The structure of this layer is similar to the multi-head attention in LeViT, with the only difference being that the input is down-sampled before the Q transformation, resulting in the "shrink attention" effect.
     ![model fig](imgs/model_structure.png)
 
-## 优化过程
+## Optimization Process
 
-### 1. Nsight System 性能分析
+### 1. Nsight System Analysis
 
-- 如下图中的性能分析图和表所示，在运行期中，除了矩阵乘法运算和卷积运算之外，Softmax函数也占用了大量的运算时间。因此，在该函数运算上还有一定的优化空间，我们采取开发TensorRT Plugin的方式尝试去优化。
-  ![Nsight system分析结果](imgs/nsys_table.png)
+- As shown in the performance analysis graph and table below, during execution, the Softmax function consumes a significant amount of computational time in addition to matrix multiplication and convolution operations. Therefore, there is still room for optimization in this function, and we are attempting to optimize it by developing a TensorRT Plugin.
+  ![Nsight system result](imgs/nsys_table.png)
   ![Nsight fig](imgs/nsys_fig.png)
 
-### 2. Softmax Plugin 开发
+### 2. Softmax Plugin 
 
-- Softmax Kernel Function 来源于 https://github.com/Oneflow-Inc/oneflow/blob/master/oneflow/core/cuda/softmax.cuh 
-- 性能提升效果：原模型Softmax函数的输入形状为[batch_size, 3, 196, 196]，我们取batch_size = 8，分别对原生Softmax和Softmax Plugin进行测试。在不损失精度的条件下，Softmax Plugin的运行时间为原生Softmax的61%. 对于LeViT模型的试验，我们采用LeViT-384模型进行性能评估。模型输入形状为 [batch_size = 8, 3,224,224]，性能的提升约为5% 
+- Softmax Kernel Function come from https://github.com/Oneflow-Inc/oneflow/blob/master/oneflow/core/cuda/softmax.cuh 
+- Performance improvement: The input shape of the Softmax function in the original model is [batch_size, 3, 196, 196], and we took batch_size = 8 for testing the original Softmax and the Softmax Plugin. Without losing accuracy, the running time of the Softmax Plugin is 61% of the original Softmax. For the LeViT model experiment, we used the LeViT-384 model for performance evaluation. The input shape of the model is [batch_size = 8, 3,224,224], and the performance improvement is approximately 5%.
 
-### 3. INT8量化
+### 3. INT8 Quantization
 
-为了取得更好的加速效果，除了常规的FP32和FP16以外，我们也对模型进行了INT8量化。我们使用的是TensorRT提供的PTQ量化流程，即手动编写calibrator，并在构造引擎的时候开启INT8量化和传入calibrator。
+To achieve better acceleration, in addition to the conventional FP32 and FP16, we also quantized the model to INT8. We used the PTQ quantization process provided by TensorRT, which involves writing a calibrator manually and enabling INT8 quantization and passing in the calibrator when constructing the engine.
 
-不出意料，INT8量化后模型精度下降了16个点（从82.6下降到66）。根据以往的比赛经验，INT8量化后容易出问题的层分别是Softmax，激活层和BN层。LeViT在导出ONNX的时候已经进行了BN和卷积的融合，故不需要考虑BN。经过实验，Softmax层对精度并无影响，在手动不量化Sigmoid激活函数层之后，模型精度恢复到76（恢复了10个点）。
+As expected, the model accuracy decreased by 16 points (from 82.6 to 66) after INT8 quantization. Based on past competition experience, the layers that are prone to problems after INT8 quantization are the Softmax, activation layers, and BN layers. LeViT has already fused BN and convolution when exporting to ONNX, so BN does not need to be considered. After experimentation, the Softmax layer had no effect on accuracy, and after manually not quantizing the Sigmoid activation function layer, the model's accuracy recovered to 76 (a recovery of 10 points).
 
-## 精度与加速效果
+## Accuracy and Optimization Result
 
-所有实验均在A10 GPU上进行。batch大小为16，单张图片大小为3x224x224，有warmup。
+All experiments were conducted on the A10 GPU. The batch size is 16, the size of a single image is 3x224x224, and there is warmup.
 
 | LeViT-384       | acc@1 | latency (ms) | Acceleration Ratio |
 | --------------- | ----- | ------------ | ------------------ |
