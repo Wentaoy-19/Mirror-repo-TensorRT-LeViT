@@ -1,42 +1,41 @@
-# trt2022_levit
+# trt2022_levit (For Demo)
 
 ## Overview
 
-- 模型名称：LeViT， https://github.com/facebookresearch/LeViT. 
-- 我们进行了FP16和INT8的优化，并在使用Nsight System进行了针对性latency分析之后，选择对softmax进行手动编写插件优化。最终我们的模型可以取得相比于PyTorch推理1.7倍的加速。
+- Model name：LeViT， https://github.com/facebookresearch/LeViT. 
+- We implement FP16 and INT8 optimization. After using Nsight System to analysize latency，we choose to write softmax customed plugin. Finally our model reach 1.7x acceleration compared to Pytorch CUDA.
 - Model Name: LeViT, https://github.com/facebookresearch/LeViT
-- We use FP16 and INT8 optimization, analysizing by Nsight System on latency. Write customed plugin for softmax, which reach 1.7x acceleration rate. 
 
 ## Running Steps
 
-- 环境准备：
+- Environment Prepare：
 
-拉取TensorRT Docker镜像： 
+Using TensorRT Docker image： 
 
 ```shell
 docker run --gpus all -it --rm nvcr.io/nvidia/tensorrt:22.05-py3
 ```
 
-拉取代码repo：
+clone code repo：
 
 ```shell
 git clone https://github.com/ModelACC/trt2022_levit.git
 ```
 
-在代码目录下，安装python依赖：
+Install Requirements：
 
 ```shell
 pip3 install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu113
 ```
 
-- 运行softmax plugin构建和测速脚本：
+- running softmax plugin building and testing script：
   
   ```shell
   cd LeViT 
   ./build_engine_run_plugin.sh
   ```
 
-- 构造TensorRT引擎：
+- Building TensorRT Engine：
 
 ```shell
 cd LeViT
@@ -48,7 +47,7 @@ python3 trt_convert_onnx.py MODEL
 python3 trt_build_engine.py --onnx-path ONNX_MODEL --engine-path ENGINE_PATH [--enable-fp16] [--enable-int8]
 ```
 
-- 测试模型精度
+- Testing model accuracy
 
 ```shell
 python3 valid.py \
@@ -58,7 +57,7 @@ python3 valid.py \
 --engine-path ENGINE_PATH
 ```
 
-IMAGENET_ROOT: imagenet数据集的根目录。数据集目录需为以下储存格式：
+IMAGENET_ROOT: imagenet dataset root path. The dataset should follow the format：
 
 > IMAGENET_ROOT
 > 
@@ -78,11 +77,11 @@ IMAGENET_ROOT: imagenet数据集的根目录。数据集目录需为以下储存
 > 
 > --------| ......
 
-MODEL_NAME：模型名字，可以为LeViT_384，LeViT_256等，具体参见原repo。
+MODEL_NAME：The name of model, can be LeViT_384，LeViT_256, according to original repo for LeViT. 
 
-TYPE： pytorch或者tensorrt，代表要测试的是PyTorch模型还是TensorRT模型。
+TYPE： pytorch or tensorrt, representing PyTorch or TensorRT Model.
 
-ENGINE_PATH：若TYPE为tensorrt，则还需要传入引擎文件。
+ENGINE_PATH：If TYPE is tensorrt, it need the engine file. 
 
 - 测试模型推理速度
 
